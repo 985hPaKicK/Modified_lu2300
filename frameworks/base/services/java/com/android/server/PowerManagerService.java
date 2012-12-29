@@ -83,6 +83,10 @@ import java.util.HashMap;
 import java.util.Observable;
 import java.util.Observer;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+
 class PowerManagerService extends IPowerManager.Stub
         implements LocalPowerManager, Watchdog.Monitor {
 
@@ -661,6 +665,7 @@ class PowerManagerService extends IPowerManager.Stub
                 com.android.internal.R.bool.config_flashlight_affects_lightsensor);
         mUseSoftwareAutoBrightness = resources.getBoolean(
                 com.android.internal.R.bool.config_automatic_brightness_available);
+        mUseSoftwareAutoBrightness = false;
         if (mUseSoftwareAutoBrightness) {
             mAutoBrightnessLevels = resources.getIntArray(
                     com.android.internal.R.array.config_autoBrightnessLevels);
@@ -1686,6 +1691,7 @@ class PowerManagerService extends IPowerManager.Stub
         int err = Power.setScreenState(on);
         if (err == 0) {
             mLastScreenOnTime = (on ? SystemClock.elapsedRealtime() : 0);
+            enableLightSensor(mAutoBrightessEnabled);
             if (mUseSoftwareAutoBrightness) {
                 enableLightSensor(on);
                 if (!on) {
@@ -2840,6 +2846,10 @@ class PowerManagerService extends IPowerManager.Stub
 
     private void setScreenBrightnessMode(int mode) {
         boolean enabled = (mode == SCREEN_BRIGHTNESS_MODE_AUTOMATIC);
+        if ( mAutoBrightessEnabled != enabled) {
+			mAutoBrightessEnabled = enabled;
+			enableLightSensor(mAutoBrightessEnabled);
+		}
         if (mUseSoftwareAutoBrightness && mAutoBrightessEnabled != enabled) {
             mAutoBrightessEnabled = enabled;
             enableLightSensor(mAutoBrightessEnabled);
@@ -3131,6 +3141,7 @@ class PowerManagerService extends IPowerManager.Stub
         mSensorManager = new SensorManager(mHandlerThread.getLooper());
         mProximitySensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
         // don't bother with the light sensor if auto brightness is handled in hardware
+            enableLightSensor(true);
         if (mUseSoftwareAutoBrightness) {
             mLightSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
             enableLightSensor(true);
@@ -3308,6 +3319,15 @@ class PowerManagerService extends IPowerManager.Stub
     private void enableLightSensor(boolean enable) {
         if (mDebugLightSensor) {
             Slog.d(TAG, "enableLightSensor " + enable);
+        }
+        try {
+            byte[] bytes = new byte[1];
+	    FileOutputStream los = new FileOutputStream("/sys/class/backlight/bd6091-bl/alc_mode");
+		bytes[0] = (byte)(enable ? '1' : '0');
+		los.write(bytes);
+		los.close();
+        } catch (Exception e) {
+            Slog.e(TAG, "enableLightSensor failed", e);
         }
         if (mSensorManager != null && mLightSensorEnabled != enable) {
             mLightSensorEnabled = enable;
