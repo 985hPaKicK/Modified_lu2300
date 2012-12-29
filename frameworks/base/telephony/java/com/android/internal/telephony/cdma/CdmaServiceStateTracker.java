@@ -1137,16 +1137,7 @@ final class CdmaServiceStateTracker extends ServiceStateTracker {
 
         if (hasChanged) {
             if (cm.getRadioState().isNVReady()) {
-                String eriText;
-                // Now the CDMAPhone sees the new ServiceState so it can get the new ERI text
-                if (ss.getState() == ServiceState.STATE_IN_SERVICE) {
-                    eriText = phone.getCdmaEriText();
-                } else {
-                    // Note that ServiceState.STATE_OUT_OF_SERVICE is valid used for
-                    // mRegistrationState 0,2,3 and 4
-                    eriText = phone.getContext().getText(
-                            com.android.internal.R.string.roamingTextSearching).toString();
-                }
+                String eriText = "LG U+";
                 ss.setCdmaEriText(eriText);
             }
 
