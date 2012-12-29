@@ -155,7 +155,12 @@ int bt_enable() {
 
     if (set_bluetooth_power(1) < 0) goto out;
 
-    LOGI("Starting hciattach daemon");
+    int waitsec = 1000000; // 1s wait delay
+
+    LOGI("Waiting for BT on. %d sec delay.", waitsec/1000000);
+    usleep(waitsec);
+
+    LOGI("Starting hciattach daemon.");
     if (property_set("ctl.start", "hciattach") < 0) {
         LOGE("Failed to start hciattach");
         set_bluetooth_power(0);
@@ -164,7 +169,7 @@ int bt_enable() {
 
     // Try for 10 seconds, this can only succeed once hciattach has sent the
     // firmware and then turned on hci device via HCIUARTSETPROTO ioctl
-    for (attempt = 1000; attempt > 0;  attempt--) {
+    for (attempt = 5; attempt > 0;  attempt--) {
         hci_sock = create_hci_sock();
         if (hci_sock < 0) goto out;
 
@@ -172,7 +177,7 @@ int bt_enable() {
             break;
         }
         close(hci_sock);
-        usleep(10000);  // 10 ms retry delay
+        usleep(3000000);  // 3s retry delay
     }
     if (attempt == 0) {
         LOGE("%s: Timeout waiting for HCI device to come up", __FUNCTION__);
