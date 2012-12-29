@@ -1,3 +1,5 @@
+# Do not compile
+ifeq (1, 2)
 
 ifneq ($(BUILD_TINY_ANDROID),true)
 
@@ -54,3 +56,5 @@ endif
 include $(BUILD_SHARED_LIBRARY)
 
 endif # not BUILD_TINY_ANDROID
+
+endif

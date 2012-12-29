@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Do not compile
+ifeq (1, 2)
 
 LOCAL_PATH:= $(call my-dir)
 # HAL module implemenation, not prelinked and stored in
@@ -40,4 +42,6 @@ LOCAL_MODULE := copybit.qsd8k
 LOCAL_C_INCLUDES += hardware/libhardware/modules/gralloc
 LOCAL_CFLAGS += -DCOPYBIT_QSD8K=1
 include $(BUILD_SHARED_LIBRARY)
+endif
+
 endif
