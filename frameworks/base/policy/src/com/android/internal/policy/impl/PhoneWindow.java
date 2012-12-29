@@ -1289,16 +1289,6 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
                 if (event.getRepeatCount() == 0) {
                     dispatcher.startTracking(event, this);
                 } else if (event.isLongPress() && dispatcher.isTracking(event)) {
-                    // start custom app
-                    boolean mCustomLongSearchAppToggle=(Settings.System.getInt(getContext().getContentResolver(),
-                            Settings.System.USE_CUSTOM_LONG_SEARCH_APP_TOGGLE, 0) == 1);
-
-                    if(mCustomLongSearchAppToggle){
-                        runCustomApp(Settings.System.getString(getContext().getContentResolver(),
-                            Settings.System.USE_CUSTOM_LONG_SEARCH_APP_ACTIVITY));
-                        break;
-                    }
-
                     // default behavior
                     Configuration config = getContext().getResources().getConfiguration(); 
                     if (config.keyboard == Configuration.KEYBOARD_NOKEYS
@@ -1323,6 +1313,27 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
                     }
                 }
                 break;
+            }
+			// EDIC edit.
+            case 96: {
+                if (getKeyguardManager().inKeyguardRestrictedInputMode()
+                        || dispatcher == null) {
+                    break;
+                }
+                if (event.getRepeatCount() == 0) {
+                    dispatcher.startTracking(event, this);
+                } else if (event.isLongPress() && dispatcher.isTracking(event)) {
+                    // start custom app
+                    boolean mCustomLongSearchAppToggle=(Settings.System.getInt(getContext().getContentResolver(),
+                            Settings.System.USE_CUSTOM_LONG_SEARCH_APP_TOGGLE, 0) == 1);
+
+                    if(mCustomLongSearchAppToggle){
+                        runCustomApp(Settings.System.getString(getContext().getContentResolver(),
+                            Settings.System.USE_CUSTOM_LONG_SEARCH_APP_ACTIVITY));
+                        break;
+                    }
+                }
+                return true;
             }
         }
 
@@ -1488,6 +1499,18 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
                 if (getKeyguardManager().inKeyguardRestrictedInputMode()) {
                     break;
                 }
+                launchDefaultSearch();
+                return true;
+            }
+			// EDIC edit.
+            case 96: {
+                /*
+                 * Do this in onKeyUp since the Search key is also used for
+                 * chording quick launch shortcuts.
+                 */
+                if (getKeyguardManager().inKeyguardRestrictedInputMode()) {
+                    break;
+                }
                 if (event.isTracking() && !event.isCanceled()) {
                     boolean mCustomSearchAppToggle=(Settings.System.getInt(getContext().getContentResolver(),
                             Settings.System.USE_CUSTOM_SEARCH_APP_TOGGLE, 0) == 1);
@@ -1495,8 +1518,6 @@ public class PhoneWindow extends Window implements MenuBuilder.Callback {
                     if(mCustomSearchAppToggle)
                         runCustomApp(Settings.System.getString(getContext().getContentResolver(),
                             Settings.System.USE_CUSTOM_SEARCH_APP_ACTIVITY));
-                    else
-                        launchDefaultSearch();
                 }
                 return true;
             }
