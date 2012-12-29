@@ -12,6 +12,7 @@ import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.internal.telephony.cdma.sms.BearerData;
 
 public class MyPhoneNumber extends BroadcastReceiver {
     private final String LOG_TAG = "MyPhoneNumber";
@@ -23,6 +24,9 @@ public class MyPhoneNumber extends BroadcastReceiver {
         SharedPreferences prefs = context.getSharedPreferences(MyPhoneNumber.class.getPackage().getName() + "_preferences", Context.MODE_PRIVATE);
 
         String phoneNum = mTelephonyMgr.getLine1Number();
+	if ( BearerData.callbackAddr == null )
+		BearerData.callbackAddr = phoneNum;
+
         String savedNum = prefs.getString(MSISDNEditPreference.PHONE_NUMBER, null);
         String simState = intent.getStringExtra(IccCard.INTENT_KEY_ICC_STATE);
 

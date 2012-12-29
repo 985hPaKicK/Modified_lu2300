@@ -306,28 +306,44 @@ public class SmsMessage {
         int pos = 0;  // Index in code units.
         int textLen = text.length();
         ArrayList<String> result = new ArrayList<String>(ted.msgCount);
-        while (pos < textLen) {
-            int nextPos = 0;  // Counts code units.
-            if (ted.codeUnitSize == ENCODING_7BIT) {
-                if (activePhone == PHONE_TYPE_CDMA && ted.msgCount == 1) {
-                    // For a singleton CDMA message, the encoding must be ASCII...
-                    nextPos = pos + Math.min(limit, textLen - pos);
-                } else {
-                    // For multi-segment messages, CDMA 7bit equals GSM 7bit encoding (EMS mode).
-                    nextPos = GsmAlphabet.findGsmSeptetLimitIndex(text, pos, limit,
-                            ted.languageTable, ted.languageShiftTable);
-                }
-            } else {  // Assume unicode.
-                nextPos = pos + Math.min(limit / 2, textLen - pos);
+
+	// For LGT SMS
+        int MAX_LGT_SMS_BYTES = 100;
+	int textbyteSize = 0;
+	byte[] textbyte = {0};
+	try {
+		textbyte = text.getBytes("KSC5601");
+		textbyteSize = textbyte.length;
+	} catch (Exception ex) {
+		Log.e(LOG_TAG, "fragmentText getBytes error1: " + ex);
+	}
+
+	// msg byte <= MAX Byte
+	if ( textbyteSize <= MAX_LGT_SMS_BYTES )
+	    result.add(text);
+
+	// msg byte >= MAX Byte
+	else {
+	    while (ted.msgCount > 0) {
+	    	ted.msgCount--;
+	    	int textSize = 0;
+            	int nextPos = 0;  // Counts code units.
+	    	String tmptext = "";
+	    	while ( (textSize < MAX_LGT_SMS_BYTES) && ((pos + nextPos) < textLen) ) {
+		    nextPos++;
+		    tmptext = text.substring(pos, pos + nextPos);
+		    try {
+			     byte[] tmptextbyte = tmptext.getBytes("KSC5601");
+			     textSize = tmptextbyte.length;
+		    } catch (Exception ex) {
+			     Log.e(LOG_TAG, "fragmentText getBytes error2: " + ex);
+		    }		    
+	        }
+            	result.add(text.substring(pos, pos + nextPos));
+            	pos += nextPos;
             }
-            if ((nextPos <= pos) || (nextPos > textLen)) {
-                Log.e(LOG_TAG, "fragmentText failed (" + pos + " >= " + nextPos + " or " +
-                          nextPos + " >= " + textLen + ")");
-                break;
-            }
-            result.add(text.substring(pos, nextPos));
-            pos = nextPos;
-        }
+	}
+
         return result;
     }
 

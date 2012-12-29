@@ -458,6 +458,13 @@ final class CdmaSMSDispatcher extends SMSDispatcher {
             }
         }
 
+	// For LGT SMS. Swap some msgs for order.
+	ArrayList<String> parts2 = new ArrayList<String>(msgCount);
+	parts2.add(parts.get(0));
+	for (int i = 1; i < msgCount; i++)
+	    parts2.add(parts.get(msgCount - i));
+	parts = parts2;
+
         for (int i = 0; i < msgCount; i++) {
             SmsHeader.ConcatRef concatRef = new SmsHeader.ConcatRef();
             concatRef.refNumber = refNumber;
@@ -479,11 +486,10 @@ final class CdmaSMSDispatcher extends SMSDispatcher {
 
             UserData uData = new UserData();
             uData.payloadStr = parts.get(i);
-            uData.userDataHeader = smsHeader;
             if (encoding == android.telephony.SmsMessage.ENCODING_7BIT) {
                 uData.msgEncoding = UserData.ENCODING_GSM_7BIT_ALPHABET;
             } else { // assume UTF-16
-                uData.msgEncoding = UserData.ENCODING_UNICODE_16;
+		uData.msgEncoding = UserData.ENCODING_KSC5601;
             }
             uData.msgEncodingSet = true;
 

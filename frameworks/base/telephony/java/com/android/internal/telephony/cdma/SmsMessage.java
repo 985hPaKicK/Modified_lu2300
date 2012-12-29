@@ -706,6 +706,33 @@ public class SmsMessage extends SmsMessageBase {
             return;
         }
         mBearerData = BearerData.decode(mEnvelope.bearerData);
+
+	if ( mEnvelope.teleService == 49173 ) {
+	    int i = 3;
+	    for ( ; ; i++) {
+		if ( mBearerData.userData.payloadStr.substring(i-1,i).equals(" ") )
+		    break;
+	    }
+	    String tmpaddr = mBearerData.userData.payloadStr.substring(2,i-1);
+
+	    // convert the value if it is 4-bit DTMF to 8
+            // bit
+	    CdmaSmsAddress tmpAddr = CdmaSmsAddress.parse(tmpaddr);
+	    byte[] data = new byte[tmpAddr.numberOfDigits];
+            byte b = 0x00;
+	    for (int index = 0; index < tmpAddr.numberOfDigits; index++) {
+            	b = (byte) (tmpAddr.origBytes[index]);
+            	data[index] = convertDtmfToAscii(b);
+	    }
+
+	    mEnvelope.origAddress = CdmaSmsAddress.parse(tmpaddr);
+	    mEnvelope.origAddress.origBytes = data;
+	    originatingAddress = CdmaSmsAddress.parse(tmpaddr);
+	    originatingAddress.origBytes = data;
+	    mBearerData.callbackNumber = CdmaSmsAddress.parse(tmpaddr);
+	    mEnvelope.teleService = 4098;
+	}
+
         if (Log.isLoggable(LOGGABLE_TAG, Log.VERBOSE)) {
             Log.d(LOG_TAG, "MT raw BearerData = '" +
                       HexDump.toHexString(mEnvelope.bearerData) + "'");
@@ -831,6 +858,9 @@ public class SmsMessage extends SmsMessageBase {
         bearerData.reportReq = false;
 
         bearerData.userData = userData;
+
+	if ( BearerData.callbackAddr != null )
+		bearerData.callbackNumber = CdmaSmsAddress.parse(BearerData.callbackAddr);
 
         byte[] encodedBearerData = BearerData.encode(bearerData);
         if (Log.isLoggable(LOGGABLE_TAG, Log.VERBOSE)) {
