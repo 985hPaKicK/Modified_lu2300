@@ -73,6 +73,8 @@ import static android.provider.Settings.System.WINDOW_ANIMATION_SCALE;
 import static android.provider.Settings.System.TRANSITION_ANIMATION_SCALE;
 import static android.provider.Settings.System.TORCH_STATE;
 
+import com.android.internal.app.ThemeUtils;
+
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -80,11 +82,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Observable;
 import java.util.Observer;
-
-// For Q light sensor
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 
 class PowerManagerService extends IPowerManager.Stub
         implements LocalPowerManager, Watchdog.Monitor {
@@ -206,6 +203,7 @@ class PowerManagerService extends IPowerManager.Stub
     private Intent mScreenOnIntent;
     private LightsService mLightsService;
     private Context mContext;
+    private Context mUiContext;
     private LightsService.Light mLcdLight;
     private LightsService.Light mButtonLight;
     private LightsService.Light mKeyboardLight;
@@ -520,14 +518,17 @@ class PowerManagerService extends IPowerManager.Stub
                 // recalculate everything
                 setScreenOffTimeoutsLocked();
 
-                mElectronBeamAnimationOn = Settings.System.getInt(mContext.getContentResolver(),
-                            ELECTRON_BEAM_ANIMATION_ON,
-                            mContext.getResources().getBoolean(
-                                    com.android.internal.R.bool.config_enableScreenOnAnimation) ? 1 : 0) == 1;
-                mElectronBeamAnimationOff = Settings.System.getInt(mContext.getContentResolver(),
-                            ELECTRON_BEAM_ANIMATION_OFF,
-                            mContext.getResources().getBoolean(
-                                    com.android.internal.R.bool.config_enableScreenOffAnimation) ? 1 : 0) == 1;
+                if (mContext.getResources().getBoolean(
+                           com.android.internal.R.bool.config_enableScreenAnimation)) {
+                    mElectronBeamAnimationOn = Settings.System.getInt(mContext.getContentResolver(),
+                                ELECTRON_BEAM_ANIMATION_ON,
+                                mContext.getResources().getBoolean(
+                                        com.android.internal.R.bool.config_enableScreenOnAnimation) ? 1 : 0) == 1;
+                    mElectronBeamAnimationOff = Settings.System.getInt(mContext.getContentResolver(),
+                                ELECTRON_BEAM_ANIMATION_OFF,
+                                mContext.getResources().getBoolean(
+                                        com.android.internal.R.bool.config_enableScreenOffAnimation) ? 1 : 0) == 1;
+                }
 
                 mAnimationSetting = 0;
                 if (mElectronBeamAnimationOff) {
@@ -658,10 +659,8 @@ class PowerManagerService extends IPowerManager.Stub
         // read settings for auto-brightness
         mFlashlightAffectsLightSensor = resources.getBoolean(
                 com.android.internal.R.bool.config_flashlight_affects_lightsensor);
-// For Q
-        mUseSoftwareAutoBrightness = false;
-//        mUseSoftwareAutoBrightness = resources.getBoolean(
-//                com.android.internal.R.bool.config_automatic_brightness_available);
+        mUseSoftwareAutoBrightness = resources.getBoolean(
+                com.android.internal.R.bool.config_automatic_brightness_available);
         if (mUseSoftwareAutoBrightness) {
             mAutoBrightnessLevels = resources.getIntArray(
                     com.android.internal.R.array.config_autoBrightnessLevels);
@@ -1687,8 +1686,6 @@ class PowerManagerService extends IPowerManager.Stub
         int err = Power.setScreenState(on);
         if (err == 0) {
             mLastScreenOnTime = (on ? SystemClock.elapsedRealtime() : 0);
-// For Q light sensor
-                enableLightSensor(mAutoBrightessEnabled);
             if (mUseSoftwareAutoBrightness) {
                 enableLightSensor(on);
                 if (!on) {
@@ -2019,12 +2016,25 @@ class PowerManagerService extends IPowerManager.Stub
         }
         if (onMask != 0) {
             int brightness = getPreferredBrightness();
+            int buttonBrightness = brightness;
+
+            if (mButtonBrightnessOverride >= 0) {
+                buttonBrightness = mButtonBrightnessOverride;
+            }
+
             if ((newState & BATTERY_LOW_BIT) != 0 &&
                     brightness > Power.BRIGHTNESS_LOW_BATTERY) {
                 brightness = Power.BRIGHTNESS_LOW_BATTERY;
+                buttonBrightness = brightness;
             }
-            if (mSpew) Slog.i(TAG, "Setting brightess on " + brightness + ": " + onMask);
-            setLightBrightness(onMask, brightness);
+
+            if (mSpew) {
+                Slog.i(TAG, "Setting brightess on " + brightness +
+                        "/" + buttonBrightness + ": " + onMask);
+            }
+
+            setLightBrightness(onMask & SCREEN_BRIGHT_BIT, brightness);
+            setLightBrightness(onMask & (BUTTON_BRIGHT_BIT | KEYBOARD_BRIGHT_BIT), buttonBrightness);
         }
     }
 
@@ -2145,7 +2155,7 @@ class PowerManagerService extends IPowerManager.Stub
             final boolean electrifying = animating &&
                 ((mElectronBeamAnimationOff && targetValue == Power.BRIGHTNESS_OFF) ||
                  (mElectronBeamAnimationOn && (int)curValue == Power.BRIGHTNESS_OFF));
-            if (mAnimateScreenLights || !electrifying) {
+            if (mAnimateScreenLights && !electrifying) {
                 synchronized (mLocks) {
                     long now = SystemClock.uptimeMillis();
                     boolean more = mScreenBrightness.stepLocked();
@@ -2691,7 +2701,7 @@ class PowerManagerService extends IPowerManager.Stub
         Runnable runnable = new Runnable() {
             public void run() {
                 synchronized (this) {
-                    ShutdownThread.reboot(mContext, finalReason, false);
+                    ShutdownThread.reboot(getUiContext(), finalReason, false);
                 }
                 
             }
@@ -2726,6 +2736,13 @@ class PowerManagerService extends IPowerManager.Stub
         } catch (InterruptedException e) {
             Log.wtf(TAG, e);
         }
+    }
+
+    private Context getUiContext() {
+        if (mUiContext == null) {
+            mUiContext = ThemeUtils.createUiContext(mContext);
+        }
+        return mUiContext != null ? mUiContext : mContext;
     }
 
     private void goToSleepLocked(long time, int reason) {
@@ -2823,11 +2840,6 @@ class PowerManagerService extends IPowerManager.Stub
 
     private void setScreenBrightnessMode(int mode) {
         boolean enabled = (mode == SCREEN_BRIGHTNESS_MODE_AUTOMATIC);
-	// For Q light sensoor
-        if ( mAutoBrightessEnabled != enabled) {
-	mAutoBrightessEnabled = enabled;
-	enableLightSensor(mAutoBrightessEnabled);
-	}
         if (mUseSoftwareAutoBrightness && mAutoBrightessEnabled != enabled) {
             mAutoBrightessEnabled = enabled;
             enableLightSensor(mAutoBrightessEnabled);
@@ -3119,8 +3131,6 @@ class PowerManagerService extends IPowerManager.Stub
         mSensorManager = new SensorManager(mHandlerThread.getLooper());
         mProximitySensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
         // don't bother with the light sensor if auto brightness is handled in hardware
-	// For Q light sensor
-            enableLightSensor(true);
         if (mUseSoftwareAutoBrightness) {
             mLightSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
             enableLightSensor(true);
@@ -3298,17 +3308,6 @@ class PowerManagerService extends IPowerManager.Stub
     private void enableLightSensor(boolean enable) {
         if (mDebugLightSensor) {
             Slog.d(TAG, "enableLightSensor " + enable);
-        }
-	// For Q light sensor
-        try {
-            byte[] bytes = new byte[1];
-	    FileOutputStream los = new FileOutputStream("/sys/class/backlight/bd6091-bl/alc_mode");
-//	    Slog.e(TAG, "enableLightSensor " + enable);
-            bytes[0] = (byte)(enable ? '1' : '0');
-            los.write(bytes);
-            los.close();
-        } catch (Exception e) {
-//            Slog.e(TAG, "enableLightSensor failed", e);
         }
         if (mSensorManager != null && mLightSensorEnabled != enable) {
             mLightSensorEnabled = enable;
